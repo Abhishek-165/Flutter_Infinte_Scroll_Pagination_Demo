@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
 import 'package:provider/provider.dart';
 import 'package:statem/models/news_response.dart';
 import 'package:statem/providers/news_provider.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:statem/screens/article_item.dart';
 
 void main() {
   runApp(const MyApp());
@@ -35,88 +36,51 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+  static const _pageSize = 100;
+
+  final PagingController<int, Article> _pagingController =
+      PagingController(firstPageKey: 1);
+
   @override
   void initState() {
+    _pagingController.addPageRequestListener((pageKey) {
+      fetchApiCall(pageKey);
+    });
     super.initState();
-    fetchApiCall();
   }
 
-  _launchURL(String link) async {
-    if (await canLaunchUrl(Uri.parse(link))) {
-      await launchUrl(
-        Uri.parse(link),
-      );
-    } else {
-      throw 'Could not launch $link';
+  @override
+  void dispose() {
+    _pagingController.dispose();
+    super.dispose();
+  }
+
+  Future<void> fetchApiCall(int pageKey) async {
+    try {
+      List<Article> articles =
+          await Provider.of<NewsProvider>(context, listen: false)
+              .fetchNews(pageKey);
+      final isLastPage = articles.length < _pageSize;
+      if (isLastPage) {
+        _pagingController.appendLastPage(articles);
+      } else {
+        _pagingController.appendPage(articles, pageKey + 1);
+      }
+    } catch (error) {
+      _pagingController.error = error;
     }
-  }
-
-  Future<void> fetchApiCall() async {
-    Provider.of<NewsProvider>(context, listen: false).fetchNews();
   }
 
   @override
   Widget build(BuildContext context) {
-    var news = Provider.of<NewsProvider>(context);
     return Scaffold(
-        body: news.newsResponse == null
-            ? const Center(
-                child: Text("No Data"),
-              )
-            : RefreshIndicator(
-                onRefresh: fetchApiCall,
-                child: ListView.builder(
-                    itemCount: news.getNewsArticles.length,
-                    itemBuilder: (context, index) {
-                      Article article = news.getNewsArticles[index];
-                      return Container(
-                        padding: const EdgeInsets.all(16.0),
-                        child: GestureDetector(
-                          onTap: () {
-                            _launchURL(article.url);
-                          },
-                          child: Card(
-                            elevation: 4,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(15.0),
-                            ),
-                            child: Column(
-                              children: <Widget>[
-                                Stack(
-                                  children: <Widget>[
-                                    Image.network(article.urlToImage),
-                                    Padding(
-                                      padding: const EdgeInsets.only(
-                                          top: 180, left: 8),
-                                      child: Text(
-                                        article.author,
-                                        style: const TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold),
-                                      ),
-                                    )
-                                  ],
-                                ),
-                                Row(
-                                  children: <Widget>[
-                                    Flexible(
-                                      child: Container(
-                                          padding: const EdgeInsets.all(8.0),
-                                          child: Text(
-                                            article.title,
-                                            style: const TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontFamily: 'hpsimplified'),
-                                          )),
-                                    ),
-                                  ],
-                                )
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    }),
-              ));
+        body: PagedListView<int, Article>(
+      pagingController: _pagingController,
+      builderDelegate: PagedChildBuilderDelegate<Article>(
+        itemBuilder: (context, item, index) => ArticleItem(
+          article: item,
+        ),
+      ),
+    ));
   }
 }
