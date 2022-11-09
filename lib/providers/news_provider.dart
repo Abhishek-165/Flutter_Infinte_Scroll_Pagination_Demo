@@ -9,13 +9,15 @@ class NewsProvider with ChangeNotifier {
 
   List<Article> get getNewsArticles => newsResponse!.articles;
 
+  var API_KEY = "";
+
   Future<List<Article>> fetchNews(int pageNo) async {
     print("PageNo : $pageNo");
     var client = http.Client();
 
     try {
       var response = await client.get(Uri.parse(
-          "https://newsapi.org/v2/everything?q=bitcoin&apiKey=e8dc5d8e271d4415bf89b00d9dfa142c&page=$pageNo"));
+          "https://newsapi.org/v2/everything?q=bitcoin&apiKey=$API_KEY&page=$pageNo"));
 
       if (response.statusCode == 200) {
         newsResponse = NewsResponse.fromMap(jsonDecode(response.body));
